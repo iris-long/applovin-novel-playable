@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>TapRead · Your next chapter</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101010;color:white;font-family:Arial,sans-serif}button{font:inherit;cursor:pointer}button:focus-visible{outline:3px solid #fff;outline-offset:4px}[hidden]{display:none!important}main{height:100dvh;max-width:540px;margin:auto;position:relative;overflow:hidden;background:#201b20}video{width:100%;height:100%;object-fit:cover}.brand{position:absolute;top:max(24px,env(safe-area-inset-top));left:24px;font-weight:bold;letter-spacing:2px;z-index:2}.overlay{position:absolute;inset:0;background:linear-gradient(transparent 25%,#000c);display:flex;flex-direction:column;justify-content:flex-end;padding:28px 24px max(32px,env(safe-area-inset-bottom));gap:12px}h1{font-size:clamp(26px,6vw,38px);line-height:1.06;margin:0 0 12px}button{border:0;border-radius:8px;min-height:52px;padding:14px 18px;background:#f4cf69;color:#211a12;font-weight:700;width:100%}.secondary{background:#ffffff20;color:white;border:1px solid #ffffff65}.eyebrow{font-size:11px;letter-spacing:2px;color:#f4cf69;margin-bottom:10px}.reader{position:absolute;inset:0;background:#f6f0e6;color:#302722;padding:70px 28px 24px;display:flex;flex-direction:column}.reader h1{font-family:Georgia,serif;font-size:32px}.reader article{overflow:auto;flex:1;line-height:1.8;font:21px/1.7 Georgia,serif;white-space:pre-line;padding:12px 0}.reader .eyebrow{color:#856732}.reader footer{display:grid;gap:10px}.reader .secondary{color:#57453b;border-color:#bcae9c}.reader .brand{color:#302722}.progress{height:3px;background:#ddd2c1;margin:12px 0}.progress div{height:100%;background:#b48a35;transition:width .2s}#status{font-size:12px;min-height:18px;text-align:center} @media(orientation:landscape){main{max-width:none}video{width:50%;object-fit:contain;background:#080808}.overlay{left:50%;padding:20px;justify-content:center}.reader{padding:20px 8%;}.reader .brand{display:none}.reader article{font-size:18px}.reader footer{grid-template-columns:1fr 1fr}.reader h1{font-size:25px}}
+.brand img{display:block;width:52px;height:52px;object-fit:contain}.brand{letter-spacing:normal}
+/* NovelSpark reference palette: white, charcoal and warm orange. */
+body{background:#f5f5f5}main{background:#fff}
+button{background:linear-gradient(100deg,#f36b28,#f58c50);color:#fff;border-radius:28px}
+.secondary{background:#fff;color:#292929;border:1px solid #eeeeee}
+.eyebrow{color:#ffb17e}
+.reader{background:#fff;color:#292929}
+.reader .eyebrow{color:#ee7638}.reader .brand{color:#292929}
+.reader .secondary{color:#292929;border-color:#e6e6e6}
+.progress{background:#f0f0f0}.progress div{background:#f47b3b}
+#sound{animation:hearPulse 1.25s ease-in-out infinite;transform-origin:center}
+@keyframes hearPulse{0%,100%{transform:scale(1);filter:brightness(1);box-shadow:0 0 0 0 #f47b3b00}50%{transform:scale(1.045);filter:brightness(1.15);box-shadow:0 0 0 7px #f47b3b24}}
+@media(prefers-reduced-motion:reduce){#sound{animation:none}}
+</style></head><body><main>
+<video id="video" muted playsinline preload="auto" src="__VIDEO__"></video><div class="brand"><img src="__LOGO__" alt="NovelSpark"></div>
+<section id="hear" class="overlay"><div class="eyebrow">ONE SENTENCE CHANGES EVERYTHING</div><h1>WAIT… WHAT DID<br>HE JUST SAY?</h1><button id="sound">TAP TO HEAR ▸</button><div id="videoStatus" role="status"></div></section>
+<section id="choice" class="overlay" hidden><div class="eyebrow">YOUR STORY. YOUR CHOICE.</div><h1>WHAT WILL<br>YOU DO?</h1><button id="routeA">LEAVE HIM. BECOME POWERFUL.</button><button id="routeB" class="secondary">LET SOMEONE SAVE ME.</button></section>
+
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id),v=$('video');let state='VIDEO',heard=false,route='A',page=0,ready=false,visible=true,startedAt=null,pending=false;
+function pause(){v.pause();v.muted=true;}
+function safePlay(){if(!visible||state!=='VIDEO')return;v.play().catch(()=>{$('videoStatus').textContent='Tap above to continue playback.';});}
+function choose(){if(state!=='VIDEO')return;pause();state='CHOICE';$('hear').hidden=true;$('choice').hidden=false;}
+document.addEventListener('pointerdown',()=>{if(startedAt===null)startedAt=performance.now();},{once:true});
+const dialogueSource='__DIALOGUE__';
+$('sound').onclick=()=>{
+ if(!heard){heard=true;v.pause();v.src=dialogueSource;v.load();}
+ v.muted=false;$('hear').hidden=true;
+ if(visible&&state==='VIDEO')v.play().catch(()=>{$('hear').hidden=false;$('sound').textContent='TAP TO CONTINUE ▸';});
+};
+// Hold the opening clip's last frame until the user requests the dialogue.
+v.addEventListener('ended',()=>{if(heard)choose();});
+v.addEventListener('error',()=>{$('hear').hidden=false;$('videoStatus').textContent='Video unavailable. Try the story below.';$('sound').textContent='CHOOSE YOUR STORY';$('sound').onclick=choose;});
+const routeLinks={
+ A:null,
+ B:null
+};
+['A','B'].forEach(r=>$('route'+r).onclick=()=>{
+ pause();
+ if(pending)return;
+ const button=$('route'+r);
+ if(window.mraid){
+   if(!ready){button.textContent='AD LOADING — TAP AGAIN SHORTLY';return;}
+   pending=true;
+   try{mraid.open(routeLinks[r]);}catch(e){button.textContent='UNABLE TO OPEN — TAP TO RETRY';}
+   finally{setTimeout(()=>pending=false,1000);}
+ }else{
+   window.location.assign(routeLinks[r]);
+ }
+});
+function setVisible(value){visible=value;if(!value)pause();else if(state==='VIDEO'){$('hear').hidden=false;$('sound').textContent=heard?'TAP TO RESUME':'TAP TO HEAR ▸';}}
+document.addEventListener('visibilitychange',()=>setVisible(!document.hidden));window.addEventListener('pagehide',pause);
+function init(){ready=!!window.mraid;if(ready){visible=mraid.isViewable();mraid.addEventListener('viewableChange',setVisible);mraid.addEventListener('stateChange',s=>{if(s==='hidden')setVisible(false);});}safePlay();}
+if(window.mraid&&mraid.getState()==='loading')mraid.addEventListener('ready',init);else init();
+</script></body></html>

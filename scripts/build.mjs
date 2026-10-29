@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import {fileURLToPath} from 'node:url';
+const configPath=path.resolve(process.argv[2]||'config.json');
+const base=path.dirname(configPath),skill=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const c=JSON.parse(fs.readFileSync(configPath,'utf8'));
+if(!['tapread','novelspark'].includes(c.channel))throw Error('channel must be tapread or novelspark');
+const b=c.routeB||c.routeA;
+for(const r of [c.routeA,b]){if(!r?.bookId||!r.url)throw Error('bookId and reading URL required');if(new URL(r.url).protocol!=='https:')throw Error('HTTPS reading URL required');}
+const read=p=>fs.readFileSync(path.resolve(base,p));
+let h=fs.readFileSync(path.join(skill,'assets/template.html'),'utf8');
+// Remove unused legacy sample reader and store logic from the inherited template.
+h=h.replace(/<section id="story"[\s\S]*?<\/section>/,'');
+h=h.replace(/const stories=[\s\S]*?\nconst \$=/,'const $=');
+h=h.replace(/^function (reset|render|openStore)\([^\n]*\n/gm,'');
+h=h.replace(/^\$\('next'\)\.onclick=[^\n]*\n/gm,'');
+h=h.replace(/const routeLinks=\{[\s\S]*?\n\};/,'const routeLinks='+JSON.stringify({A:c.routeA.url,B:b.url})+';');
+const escape=s=>s.replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+if(c.choiceEyebrow)h=h.replace('YOUR STORY. YOUR CHOICE.',escape(c.choiceEyebrow));
+if(c.choiceTitle)h=h.replace('WHAT WILL<br>YOU DO?',escape(c.choiceTitle).replace(/\n/g,'<br>'));
+for(const [id,r] of [['routeA',c.routeA],['routeB',b]])if(r.label)h=h.replace(new RegExp('(<button id="'+id+'"[^>]*>)[^<]*'),(_,start)=>start+escape(r.label));
+if(c.channel==='tapread')h=h.replace('</style>',`button{background:#ffe777;color:#202020}.secondary{background:#262626;color:#ffe777;border-color:#464646}.eyebrow{color:#ffe777}#sound{background:#262626;color:#ffe777;animation:tapreadPulse 1.25s ease-in-out infinite}@keyframes tapreadPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 #ffdc2800}50%{transform:scale(1.045);box-shadow:0 0 0 7px #ffdc2826}}@media(prefers-reduced-motion:reduce){#sound{animation:none}}</style>`);
+h=h.replace(/<title>.*?<\/title>/,'<title>'+ (c.channel==='tapread'?'TapRead':'NovelSpark')+' · Interactive story</title>').replace('alt="NovelSpark"','alt="'+(c.channel==='tapread'?'TapRead':'NovelSpark')+'"');
+const logo=c.logo?read(c.logo):fs.readFileSync(path.join(skill,'assets',c.channel+'.png'));
+h=h.replace('__VIDEO__','data:video/mp4;base64,'+read(c.intro).toString('base64')).replace('__DIALOGUE__','data:video/mp4;base64,'+read(c.dialogue).toString('base64')).replaceAll('__LOGO__','data:image/png;base64,'+logo.toString('base64'));
+if(/__[A-Z]+__/.test(h))throw Error('Unresolved template token');
+new vm.Script(h.match(/<script>([\s\S]*?)<\/script>/)[1]);
+if(/(?:src|href)\s*=\s*["']https?:/i.test(h)||/\b(?:fetch|XMLHttpRequest)\s*\(/.test(h))throw Error('External resource request');
+const bytes=Buffer.byteLength(h);if(bytes>5000000)throw Error('Exceeds 5 MB: '+bytes);
+const output=path.resolve(base,c.output);if(fs.existsSync(output))throw Error('Output exists; choose a new output name: '+output);
+fs.writeFileSync(output,h);
+fs.writeFileSync(output+'.manifest.json',JSON.stringify({channel:c.channel,bytes,routeA:c.routeA,routeB:b,checks:{syntax:true,embeddedResources:true,size:true,browser:false,applovin:false}},null,2));
+console.log(JSON.stringify({output,bytes}));

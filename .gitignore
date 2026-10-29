@@ -1,0 +1,7 @@
+config.json
+*.manifest.json
+output/
+private/
+*.mp4
+.DS_Store
+node_modules/
